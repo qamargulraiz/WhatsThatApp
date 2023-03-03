@@ -54,8 +54,7 @@ export async function getUserInfo(userId) {
     
 }
 
-export async function patchUserInfo(updateBody) {
-      
+export async function patchUserInfo(updateBody) {    
     try {
         // Send a PATCH request with the user's signup data
         const response = await fetch(URLaddress + '/user/' + loggedUser.userId, {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { URLaddress, loggedUser } from './App';
-import { getContacts, postContact, deleteContact } from './Contact';
+import { getContacts, postContact, deleteContact, getBlockedContacts, postBlockContact, deleteBlockedContact } from './Contact';
 import { FontAwesome } from '@expo/vector-icons';
 import { getUserInfo, patchUserInfo, postLogout } from './UserRequests';
 import { getChats, postChat, patchChat } from './ChatRequests';
@@ -70,34 +70,44 @@ function Chats() {
     navigation.navigate('Chat', { chatId });
   }
 
+  function handleHideInput() {
+    setShowInput(false);
+  }
+
   return (
     <View style={styles.tabContent}>
       {chats.map(chat => (
-        <TouchableOpacity key={chat.chat_id} style={styles.chatItem} onPress={() => handleChatPress(chat.chat_id)}>
-          <Text style={styles.chatName}>{chat.name}</Text>
+        <TouchableOpacity key={chat.chat_id} style={styles.homeItem} onPress={() => handleChatPress(chat.chat_id)}>
+          <View style={styles.homeItemView}>
+            <Text style={styles.homeItemName}>{chat.name}</Text>
+            <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleEditChat(chat.chat_id)}>
+              <FontAwesome name="edit" size={20} color="#000" />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.chatLastMessage}>
             {chat.last_message && Object.keys(chat.last_message).length !== 0
               ? chat.last_message.message || "No messages yet"
               : "No messages yet"}
-          </Text>          <TouchableOpacity onPress={() => handleEditChat(chat.chat_id)}>
-            <FontAwesome name="edit" size={20} color="#000" />
-          </TouchableOpacity>
+          </Text>
         </TouchableOpacity>
       ))}
       {showInput ? (
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Chat name"
-            value={chatName}
-            onChangeText={setChatName}
-          />
-          <TouchableOpacity style={styles.saveContactButton} onPress={editChatId ? handleSaveEdit : handleCreateChat}>
-            <Text style={styles.saveContactButtonText}>{editChatId ? 'Save' : 'Create'}</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Chat name"
+              value={chatName}
+              onChangeText={setChatName}
+            />
+            <TouchableOpacity style={styles.saveButton} onPress={editChatId ? handleSaveEdit : handleCreateChat}>
+              <Text style={styles.saveButtonText}>{editChatId ? 'Save' : 'Create'}</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : (
-        <TouchableOpacity style={styles.newContactButton} onPress={handleAddChat}>
+        <TouchableOpacity style={styles.newItemButton} onPress={handleAddChat}>
           <FontAwesome name="comment" size={20} color="#FFF" />
         </TouchableOpacity>
       )}
@@ -110,11 +120,13 @@ function Chats() {
 function Contacts() {
 
   const [contacts, setContacts] = useState([]);
+  const [blockedcontacts, setBlockedContacts] = useState([]);
   const [showInput, setShowInput] = useState(false);
   const [userId, setUserId] = useState('');
 
   useEffect(() => {
     getContacts([contacts, setContacts]);
+    getBlockedContacts([blockedcontacts, setBlockedContacts]);
   }, []);
 
   const handleAddContact = () => {
@@ -149,55 +161,73 @@ function Contacts() {
 
   const handleBlockContact = (contactId) => {
     // call API to block the contact with the given ID
-    blockContact(contactId)
-      .then(() => {
-        // update the blocked flag for the blocked contact in the contacts list
-        setContacts(contacts.map(contact => {
-          if (contact.user_id === contactId) {
-            return { ...contact, blocked: true };
-          }
-          return contact;
-        }));
-      })
-      .catch(error => {
-        console.error('Error blocking contact: ', error);
-      });
+    postBlockContact(contactId);
   };
+
+  const handleUnblockContact = (contactId) => {
+    // call API to block the contact with the given ID
+    deleteBlockedContact(contactId);
+  };
+
 
   return (
     <View style={styles.tabContent}>
-      {contacts.map(contact => (
-        <View key={contact.user_id} style={styles.contactItem}>
-          <Text style={styles.contactName}>{contact.first_name} {contact.last_name}</Text>
-          <TouchableOpacity onPress={() => handleDeleteContact(contact.user_id)}>
-            <FontAwesome name="trash-o" size={20} color="#FF0000" />
-          </TouchableOpacity>
-          {!contact.blocked ? (
-            <TouchableOpacity onPress={() => handleBlockContact(contact.user_id)}>
-              <FontAwesome name="lock" size={20} color="#000000" />
+      {contacts.map((contact, index) => (
+        <View key={contact.user_id} style={styles.homeItem}>
+          <View style={styles.homeItemView}>
+            <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
+            <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleDeleteContact(contact.user_id)}>
+              <FontAwesome name="trash-o" size={20} color="#FF0000" />
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => handleUnblockContact(contact.user_id)}>
-              <FontAwesome name="unlock" size={20} color="#000000" />
+
+            <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleBlockContact(contact.user_id)}>
+              <FontAwesome name="unlock-alt" size={20} color="#000000" />
             </TouchableOpacity>
-          )}
+
+          </View>
+          {index !== contacts.length - 1 && <View style={styles.separator} />}
         </View>
       ))}
+      {blockedcontacts.length > 0 && (
+        <>
+          <View style={styles.separator} />
+          <Text style={styles.blockedHeaderText}>Blocked Contacts</Text>
+          {blockedcontacts.map((contact, index) => (
+            <View key={contact.user_id} style={styles.homeItem}>
+              <View style={styles.homeItemView}>
+                <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
+                <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleDeleteContact(contact.user_id)}>
+                  <FontAwesome name="trash-o" size={20} color="#FF0000" />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleUnblockContact(contact.user_id)}>
+                  <FontAwesome name="lock" size={20} color="#000000" />
+                </TouchableOpacity>
+
+              </View>
+              {index !== blockedcontacts.length - 1 && <View style={styles.separator} />}
+            </View>
+          ))}
+        </>
+      )}
       {showInput ? (
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="User ID"
-            value={userId}
-            onChangeText={setUserId}
-            keyboardType="numeric"
-          />
-          <TouchableOpacity style={styles.saveContactButton} onPress={handleSaveContact}>
-            <Text style={styles.saveContactButtonText}>Save</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="User ID"
+              value={userId}
+              onChangeText={setUserId}
+              keyboardType="numeric"
+            />
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveContact}>
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : (
-        <TouchableOpacity style={styles.newContactButton} onPress={handleAddContact}>
+        <TouchableOpacity style={styles.newItemButton} onPress={handleAddContact}>
           <FontAwesome name="user-plus" size={20} color="#FFF" />
         </TouchableOpacity>
       )}
@@ -565,8 +595,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 5,
   },
-
-  chatItem: {
+  homeItem: {
     width: '100%',
     padding: 20,
     backgroundColor: '#f0f0f0',
@@ -574,28 +603,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
   },
-  chatName: {
+  homeItemView: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  homeItemName: {
+    flex: 5,
     fontWeight: 'bold',
     fontSize: 16,
-    marginBottom: 5,
+  },
+  homeItemIcons: {
+    flex: 1,
+  },
+  separator: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFEFEF',
+    marginBottom: 10,
   },
   chatLastMessage: {
     color: '#777',
     fontSize: 14,
   },
-  contactItem: {
-    width: '100%',
-    padding: 20,
-    backgroundColor: '#f0f0f0',
-    paddingTop: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-  },
-  contactName: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  newContactButton: {
+  newItemButton: {
     position: 'absolute',
     bottom: 16,
     right: 16,
@@ -620,10 +650,26 @@ const styles = StyleSheet.create({
     fontSize: 32,
     lineHeight: 32,
   },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
   inputContainer: {
-    width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -150 }, { translateY: -100 }],
+    width: 300,
+    height: 200,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   saveButton: {
     backgroundColor: '#3366FF',
