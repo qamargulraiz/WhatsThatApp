@@ -56,6 +56,7 @@ export default function SignIn({ navigation }) {
 
         loggedUser.userId = data.id;
         loggedUser.Stoken = data.token;
+        loggedUser.pwd = password;
         console.log(loggedUser);
         // Handle the response as needed
         navigation.navigate('Home');

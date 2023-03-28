@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput } from 'reac
 import { useNavigation } from '@react-navigation/native';
 import { URLaddress } from './App';
 import { loggedUser } from './App';
-import { getContacts, postContact } from './Contact';
+import { getContacts, postContact } from './ContactRequests';
 import { FontAwesome } from '@expo/vector-icons';
 
 
@@ -54,20 +54,24 @@ export async function getUserInfo(userId) {
     
 }
 
-export async function patchUserInfo(updateBody) {    
+export async function patchUserInfo(patchBody) {    
     try {
         // Send a PATCH request with the user's signup data
         const response = await fetch(URLaddress + '/user/' + loggedUser.userId, {
           method: 'PATCH',
           headers: {'Content-Type': 'application/json', 'X-Authorization': loggedUser.Stoken}, 
-          body: JSON.stringify(updateBody),
+          body: JSON.stringify(patchBody),
         });
         
         console.log(response.status);
 
         // Check the response status
-        if (response.status === 201) {
+        if (response.status === 200) {
           console.log('Sign up successful!');
+          if (patchBody.password){
+            loggedUser.pwd = patchBody.password;
+            console.log('New Password is:' + loggedUser.pwd);
+          }
         } else {
           console.error('Sign up failed.');
         }

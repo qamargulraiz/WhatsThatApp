@@ -7,6 +7,7 @@ import SignIn from './SignIn';
 import SignUp from './SignUp';
 import Home from './Home';
 import Chat from './Chat';
+import CameraSendToServer from './cameratoServer';
 
 
 const Stack = createStackNavigator();
@@ -14,7 +15,7 @@ const Stack = createStackNavigator();
 //export const URLaddress = "http://10.0.2.2:3333/api/1.0.0";
 export const URLaddress = "http://localhost:3333/api/1.0.0";
 
-let loggedUser = { userId: '', Stoken: '' };
+let loggedUser = { userId: '', Stoken: '', pwd: '' };
 if (typeof loggedUser !== 'undefined' && loggedUser.userId !== '' && loggedUser.Stoken !== '') {
   // If loggedUser already exists and has values for userId and Stoken, don't change them
 } else {
@@ -33,6 +34,7 @@ export default function App() {
 
       <Stack.Screen name="Home" component={Home} options={{ headerShown: false }}/>
         <Stack.Screen name="Chat" component={Chat} options={{ headerShown: false }} />
+      <Stack.Screen name="Camera" component={CameraSendToServer} />
         
 
       </Stack.Navigator>

@@ -1,24 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, TouchableWithoutFeedback, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Table, Row } from 'react-native-table-component';
 import { URLaddress, loggedUser } from './App';
-import { getContacts, postContact, deleteContact, getBlockedContacts, postBlockContact, deleteBlockedContact } from './Contact';
+import ImagePicker from 'react-native-image-picker';
+import axios from 'axios';
+import { Camera } from 'expo-camera';
+import * as FileSystem from 'expo-file-system';
+import { getContacts, postContact, deleteContact, getBlockedContacts, postBlockContact, deleteBlockedContact } from './ContactRequests';
+import CameraTakePicture from './cameratoServer';
 import { FontAwesome } from '@expo/vector-icons';
 import { getUserInfo, patchUserInfo, postLogout } from './UserRequests';
 import { getChats, postChat, patchChat } from './ChatRequests';
 
-// Example data for chats and contacts
-const exampleChats = [
-  { id: 1, name: 'Alice', lastMessage: 'Hey, how are you?' },
-  { id: 2, name: 'Jack', lastMessage: 'See you tomorrow!' },
-  { id: 3, name: 'Lenny', lastMessage: 'Can you send me that file?' },
-];
 
-const exampleContacts = [
-  { user_id: 1, first_name: 'Alice', last_name: 'Mc', email: 'alice@gmail.com' },
-  { user_id: 2, first_name: 'Jack', last_name: 'Sparrow', email: 'jack@gmail.com' },
-  { user_id: 3, first_name: 'Lenny', last_name: 'Stuart', email: 'lenny@gmail.com' },
-];
+
+
+const ErrorBanner = ({ message }) => {
+  return (
+    <View style={styles.errorBanner}>
+      <Text style={{ color: 'white', fontWeight: 'bold' }}>{message}</Text>
+    </View>
+  );
+};
 
 // Define Chats component
 function Chats() {
@@ -27,16 +31,29 @@ function Chats() {
   const [showInput, setShowInput] = useState(false);
   const [chatName, setChatName] = useState('');
   const [editChatId, setEditChatId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     getChats([chats, setChats]);
   }, []);
+
+  useEffect(() => {
+    if (errorMessage) {
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 3000);
+    }
+  }, [errorMessage]);
 
   const handleAddChat = () => {
     setShowInput(true);
   };
 
   const handleCreateChat = () => {
+    if (!chatName.trim()) {
+      setErrorMessage('Please enter a valid chat name.'); return;
+      return;
+    }
     postChat(chatName)
       .then(() => {
         setShowInput(false);
@@ -46,6 +63,7 @@ function Chats() {
       .catch(error => {
         console.error('Error creating chat: ', error);
       });
+
   };
 
   const handleEditChat = (chatId) => {
@@ -54,6 +72,10 @@ function Chats() {
   }
 
   const handleSaveEdit = () => {
+    if (!chatName.trim()) {
+      setErrorMessage('Please enter a valid chat name.'); return;
+      return;
+    }
     patchChat(editChatId, chatName)
       .then(() => {
         setShowInput(false);
@@ -76,6 +98,7 @@ function Chats() {
 
   return (
     <View style={styles.tabContent}>
+      {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
       {chats.map(chat => (
         <TouchableOpacity key={chat.chat_id} style={styles.homeItem} onPress={() => handleChatPress(chat.chat_id)}>
           <View style={styles.homeItemView}>
@@ -123,17 +146,30 @@ function Contacts() {
   const [blockedcontacts, setBlockedContacts] = useState([]);
   const [showInput, setShowInput] = useState(false);
   const [userId, setUserId] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     getContacts([contacts, setContacts]);
     getBlockedContacts([blockedcontacts, setBlockedContacts]);
   }, []);
 
+  useEffect(() => {
+    if (errorMessage) {
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 3000);
+    }
+  }, [errorMessage]);
+
   const handleAddContact = () => {
     setShowInput(true);
   };
 
   const handleSaveContact = () => {
+    if (!userId.trim()) {
+      setErrorMessage('Please enter a valid User Id.');
+      return;
+    }
     // call API to save the contact with the provided user ID
     postContact(userId)
       .then(() => {
@@ -161,37 +197,62 @@ function Contacts() {
 
   const handleBlockContact = (contactId) => {
     // call API to block the contact with the given ID
-    postBlockContact(contactId);
+    postBlockContact(contactId)
+      .then(() => {
+        // call getContacts to update the contacts list with the new contact
+        getContacts([contacts, setContacts]);
+        getBlockedContacts([blockedcontacts, setBlockedContacts]);
+
+      })
+      .catch(error => {
+        console.error('Error blocking contact: ', error);
+      });
   };
 
   const handleUnblockContact = (contactId) => {
     // call API to block the contact with the given ID
-    deleteBlockedContact(contactId);
+    deleteBlockedContact(contactId)
+      .then(() => {
+        // call getContacts to update the contacts list with the new contact
+        getContacts([contacts, setContacts]);
+        getBlockedContacts([blockedcontacts, setBlockedContacts]);
+      })
+      .catch(error => {
+        console.error('Error blocking contact: ', error);
+      });
   };
 
 
   return (
     <View style={styles.tabContent}>
-      {contacts.map((contact, index) => (
-        <View key={contact.user_id} style={styles.homeItem}>
-          <View style={styles.homeItemView}>
-            <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
-            <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleDeleteContact(contact.user_id)}>
-              <FontAwesome name="trash-o" size={20} color="#FF0000" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleBlockContact(contact.user_id)}>
-              <FontAwesome name="unlock-alt" size={20} color="#000000" />
-            </TouchableOpacity>
-
+      {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
+      {contacts.length > 0 && (
+        <>
+          <View style={styles.unblockedHeaderContainer}>
+            <Text style={styles.contactHeaderText}>Unblocked Contacts</Text>
           </View>
-          {index !== contacts.length - 1 && <View style={styles.separator} />}
-        </View>
-      ))}
+          {contacts.map((contact, index) => (
+            <View key={contact.user_id} style={styles.homeItem}>
+              <View style={styles.homeItemView}>
+                <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
+                <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleDeleteContact(contact.user_id)}>
+                  <FontAwesome name="trash-o" size={20} color="#FF0000" />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleBlockContact(contact.user_id)}>
+                  <FontAwesome name="unlock-alt" size={20} color="#000000" />
+                </TouchableOpacity>
+
+              </View>
+            </View>
+          ))}
+        </>
+      )}
       {blockedcontacts.length > 0 && (
         <>
-          <View style={styles.separator} />
-          <Text style={styles.blockedHeaderText}>Blocked Contacts</Text>
+          <View style={styles.blockedHeaderContainer}>
+            <Text style={styles.contactHeaderText}>Blocked Contacts</Text>
+          </View>
           {blockedcontacts.map((contact, index) => (
             <View key={contact.user_id} style={styles.homeItem}>
               <View style={styles.homeItemView}>
@@ -239,9 +300,27 @@ function Profile() {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [newPassword, setnewPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [image, setImage] = useState(null);
   const [showUpdate, setShowUpdate] = useState(false);
+  const [showInput, setShowInput] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [editImage, setEditImage] = useState(false);
+  const [imageUri, setImageUri] = useState(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+
+  const cameraRef = useRef(null);
+
+
+  useEffect(() => {
+    if (errorMessage) {
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 3000);
+    }
+  }, [errorMessage]);
 
   useEffect(() => {
     // call the getUserInfo function and update state variables with the user information
@@ -250,46 +329,91 @@ function Profile() {
         setName(data.first_name);
         setSurname(data.last_name);
         setEmail(data.email);
-        setPassword(data.password);
+        setnewPassword(loggedUser.pwd);
       })
       .catch((error) => {
         console.error('Error getting user info: ', error);
       });
   }, []);
 
-  const handleUpdateProfile = (field) => {
-    switch (field) {
-      case 'name':
-        patchUserInfo({ first_name: name });
-        break;
-      case 'surname':
-        patchUserInfo({ last_name: surname });
+  useEffect(() => {
+    // call the getUserInfo function and update state variables with the user information
+    const fetchPhoto = async () => {
+      try {
+        // Send a GET request to retrieve user photo
+        const response = await fetch(`${URLaddress}/user/${loggedUser.userId}/photo`, {
+          headers: {'X-Authorization': loggedUser.Stoken, 'Accept' : 'image/png'},
+        });
+        const resBlob = await response.blob(); // extract the response blob from the response object
+  
+        // create a URL for the blob data
+        const data = URL.createObjectURL(resBlob);
+  
+        // update the state variables with the photo and isLoading flag
+        setImageUri(data);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+  
+    fetchPhoto(); // invoke the fetchPhoto function
+  }, []);
 
-        break;
-      case 'email':
-        patchUserInfo({ email: email });
-
-        break;
-      case 'password':
-        patchUserInfo({ password: password });
-
-        break;
-      default:
-        break;
+  const handleValidation = () => {
+    if (!name.trim() || !surname.trim() || !email.trim() || !newPassword.trim()) {
+      setErrorMessage('Please fill all fields.');
+      return;
     }
-  };
 
-  const handleImageChange = (event) => {
-    const { uri } = event.nativeEvent;
-    setImage(uri);
+    setShowInput(true);
+  }
+
+  const handleUpdateProfile = async () => {
+    if (!currentPassword.trim()) {
+      setErrorMessage('Please enter a Valid Password.');
+      return;
+    } else if (currentPassword !== loggedUser.pwd) {
+      setErrorMessage('Wrong Password.');
+      return;
+    }
+
+    setShowInput(false);
+
+    // retrieve current user info
+    const currentUserInfo = await getUserInfo(loggedUser.userId);
+
+    // create new user info object with updated fields
+    const updatedUserInfo = {
+      first_name: name,
+      last_name: surname,
+      email: email,
+    };
+
+    if (newPassword !== currentPassword) {
+      updatedUserInfo.password = newPassword;
+    }
+
+    // compare current and updated user info
+    const updatedFields = {};
+    Object.keys(updatedUserInfo).forEach(key => {
+      if (currentUserInfo[key] !== updatedUserInfo[key]) {
+        updatedFields[key] = updatedUserInfo[key];
+      }
+      setCurrentPassword('');
+    });
+
+    // patch only the fields that have changed
+    if (Object.keys(updatedFields).length > 0) {
+      await patchUserInfo(updatedFields);
+
+    }
+
+    // set showUpdate to false to hide the update form
+    setShowUpdate(false);
   };
 
   const handleEditProfile = () => {
-    setIsEditing(true);
-  };
-
-  const handleSaveProfile = () => {
-    setIsEditing(false);
+    setShowUpdate(true);
   };
 
   const navigation = useNavigation();
@@ -301,97 +425,145 @@ function Profile() {
     navigation.navigate('SignIn');
   };
 
+  const handleEditImage = () => {
+    navigation.navigate('Camera');
+  }
+
+  const searchUser = async (query) => {
+    try {
+      const response = await fetch(URLaddress + `/search?q=${query}`, {
+        headers: {
+          'X-Authorization': loggedUser.Stoken,
+        },
+      });
+      const result = await response.json();
+      setResults(result);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const tableHead = ['ID', 'First Name', 'Last Name', 'Email'];
+
+  const tableData = results.map((user) => [
+    user.user_id.toString(),
+    user.given_name,
+    user.family_name,
+    user.email,
+  ]);
+
   return (
     <View style={styles.tabContent}>
+      {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
+
       <View style={styles.profileImageContainer}>
-        {image ? (
-          <Image source={{ uri: image }} style={styles.profileImage} />
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.profileImage} />
         ) : (
           <FontAwesome name="user" size={100} color="#555" />
         )}
-        <TouchableOpacity style={styles.editImageButton}>
+        <TouchableOpacity style={styles.editImageButton} onPress={handleEditImage}>
           <Text style={styles.editImageButtonText}>Edit Image</Text>
-          <TextInput style={styles.hiddenInput} onChange={handleImageChange} />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.showUpdateButton} onPress={() => setShowUpdate(true)}>
-        <Text style={styles.showUpdateButtonText}>Update Profile</Text>
-      </TouchableOpacity>
+
+
       {showUpdate ? (
         <View style={styles.profileInfo}>
-          <View style={{ width: '100%', marginBottom: 10 }}>
-            <TextInput
-              style={styles.inputProfile}
-              placeholder="Name"
-              value={name}
-              onChangeText={setName}
-            />
-            <TouchableOpacity
-              style={styles.updateButtonProfile}
-              onPress={() => handleUpdateProfile('name')}
-            >
-              <FontAwesome name="pencil" style={styles.updateButtonIcon} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ width: '100%', marginBottom: 10 }}>
-            <TextInput
-              style={styles.inputProfile}
-              placeholder="Surname"
-              value={surname}
-              onChangeText={setSurname}
-            />
-            <TouchableOpacity
-              style={styles.updateButtonProfile}
-              onPress={() => handleUpdateProfile('surname')}
-            >
-              <FontAwesome name="pencil" style={styles.updateButtonIcon} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ width: '100%', marginBottom: 10 }}>
-            <TextInput
-              style={styles.inputProfile}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <TouchableOpacity
-              style={styles.updateButtonProfile}
-              onPress={() => handleUpdateProfile('email')}
-            >
-              <FontAwesome name="pencil" style={styles.updateButtonIcon} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ width: '100%', marginBottom: 10 }}>
-            <TextInput
-              style={styles.inputProfile}
-              placeholder="Password"
-              secureTextEntry={true}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <TouchableOpacity
-              style={styles.updateButtonProfile}
-              onPress={() => handleUpdateProfile('password')}
-            >
-              <FontAwesome name="pencil" style={styles.updateButtonIcon} />
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            style={styles.inputProfile}
+            placeholder="Name"
+            value={name}
+            onChangeText={setName}
+          />
+          <TextInput
+            style={styles.inputProfile}
+            placeholder="Surname"
+            value={surname}
+            onChangeText={setSurname}
+          />
+          <TextInput
+            style={styles.inputProfile}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            style={styles.inputProfile}
+            placeholder="Enter new Password"
+            secureTextEntry={true}
+            value={newPassword}
+            onChangeText={setnewPassword}
+          />
+          <TouchableOpacity style={styles.updateButtonProfile} onPress={handleValidation}>
+            <Text style={styles.updateButtonText}>Update</Text>
+          </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.profileInfoMain}>
-          <Text style={styles.profileText}>
-            {`${name} ${surname}`}
-            <Text>{'\n'}</Text>
-            {`${email}`}
-          </Text>
+        <View style={styles.profileViewContainer}>
+          <View style={styles.profileInfoMain}>
+            <Text style={styles.profileText}>
+              {`${name} ${surname}`}
+              <Text>{'\n'}</Text>
+              {`${email}`}
+            </Text>
+          </View>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+              <FontAwesome name="pencil" style={styles.editButtonIcon} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.logoutButton} onPress={() => handleLogout()}>
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
+      {showInput ? (
+        <>
+          <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.inputProfile}
+              placeholder="Validate Current Password"
+              secureTextEntry={true}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+            />
+            <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile}>
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <></>
+      )}
 
-      <TouchableOpacity style={styles.logoutButton} onPress={() => handleLogout()}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
-      </TouchableOpacity>
+      <View style={styles.searchfeaturecontainer}>
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.inputProfile}
+            placeholder="Search for a user"
+            onChangeText={setQuery}
+          />
+          <TouchableOpacity onPress={() => searchUser(query)} style={styles.searchButton}>
+            <Text style={styles.searchButtonText}>Search</Text>
+          </TouchableOpacity>
+        </View>
+        {results.length > 0 && (
+          <View style={styles.resultsContainer}>
+            <Table borderStyle={{ borderWidth: 1 }}>
+              <Row data={tableHead} style={styles.head} textStyle={styles.text} />
+              {tableData.map((rowData, index) => (
+                <Row key={index} data={rowData} style={[styles.row, index % 2 && { backgroundColor: '#F7F6E7' }]} textStyle={styles.text} />
+              ))}
+            </Table>
+          </View>
+        )}
 
+
+      </View>
     </View>
+
   );
 }
 
@@ -477,6 +649,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
+  errorBanner: {
+    position: 'absolute',
+    backgroundColor: 'red',
+    marginTop: 20,
+    padding: 10,
+    zIndex: 999,
+    borderRadius: 10,
+  },
   input: {
     width: '100%',
     padding: 10,
@@ -518,23 +698,27 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     width: '100%',
-    flexDirection: 'row',
+    flexDirection: 'column',
+    alignItems: 'center',
     flexWrap: 'wrap',
+    marginBottom: 20,
   },
   updateButtonProfile: {
     backgroundColor: 'transparent',
     height: 30,
     justifyContent: 'center',
     flexDirection: 'row',
-    marginTop: 10,
   },
   updateButtonIcon: {
     color: 'blue',
     fontSize: 18,
   },
   updateButtonText: {
-    color: 'white',
+    color: 'Red',
     flex: 1,
+  },
+  profileViewContainer: {
+    flexDirection: 'column',
   },
   profileInfoMain: {
     width: '100%',
@@ -549,6 +733,33 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+  editButton: {
+    backgroundColor: '#ffcc00',
+    borderRadius: 10,
+    padding: 10,
+    margin: 5,
+  },
+  editButtonIcon: {
+    color: '#ffffff',
+    fontSize: 20,
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  logoutButton: {
+    backgroundColor: '#ff0000',
+    borderRadius: 10,
+    padding: 10,
+    margin: 5,
+  },
+  logoutButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
   changeImageButton: {
     backgroundColor: '#007aff',
     padding: 10,
@@ -559,6 +770,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
   },
+  searchfeaturecontainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    width: '100%'
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    width: '90%'
+  },
+  searchButton: {
+    height: 48,
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+    marginLeft: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  resultsContainer: {
+    marginTop: 16,
+  },
+  head: { height: 40, backgroundColor: '#f1f8ff' },
+  row: { height: 'auto' },
+  text: { margin: 6 },
+
   form: {
     width: '100%',
   },
@@ -616,10 +861,22 @@ const styles = StyleSheet.create({
   homeItemIcons: {
     flex: 1,
   },
-  separator: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
-    marginBottom: 10,
+  blockedHeaderContainer: {
+    backgroundColor: '#f67280',
+    alignItems: 'center',
+    width: '100%',
+    padding: 10,
+  },
+  unblockedHeaderContainer: {
+    backgroundColor: '#b3e6d1',
+    alignItems: 'center',
+    width: '100%',
+    padding: 10,
+  },
+  contactHeaderText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   chatLastMessage: {
     color: '#777',
