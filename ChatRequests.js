@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { URLaddress, loggedUser } from './App';
+import { URLaddress} from './App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome } from '@expo/vector-icons';
 
 export function getChats([chats, setChats]) {
   
     // Use an async function inside useEffect to fetch data
     async function fetchChats() {
+      const stoken = await AsyncStorage.getItem('stoken');
       try {
         // Send a GET request with the user's authorization token
         const response = await fetch(URLaddress +'/chat', {
-          headers: {'X-Authorization': loggedUser.Stoken},
+          headers: {'X-Authorization': stoken},
         });
 
         // Check the response status
@@ -35,11 +37,12 @@ export function getChats([chats, setChats]) {
 }
 
 export async function postChat(chatName){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/chat', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-Authorization': loggedUser.Stoken},
+          headers: {'Content-Type': 'application/json', 'X-Authorization': stoken},
           body: JSON.stringify({ "name": chatName}),
         });
   
@@ -58,11 +61,12 @@ export async function postChat(chatName){
 };
 
 export async function patchChat(editChatId, chatName){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a PATCH request with the user's signup data
         const response = await fetch(URLaddress +'/chat/'+ editChatId, {
           method: 'PATCH',
-          headers: {'Content-Type': 'application/json', 'X-Authorization': loggedUser.Stoken},
+          headers: {'Content-Type': 'application/json', 'X-Authorization': stoken},
           body: JSON.stringify({ "name": chatName}),
         });
   
@@ -81,10 +85,11 @@ export async function patchChat(editChatId, chatName){
 };
 
 export async function getChatById(setChat, chatId) {
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
       // Send a GET request with the user's authorization token
       const response = await fetch(`${URLaddress}/chat/${chatId}`, {
-        headers: { 'X-Authorization': loggedUser.Stoken },
+        headers: { 'X-Authorization': stoken },
       });
   
       // Check the response status
@@ -105,12 +110,14 @@ export async function getChatById(setChat, chatId) {
   
 
   export async function postMessage(chatId, chatMessage){
+    const stoken = await AsyncStorage.getItem('stoken');
+    let chatMsg=chatMessage+" ";
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/chat/'+ chatId +'/message' , {
           method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-Authorization': loggedUser.Stoken},
-          body: JSON.stringify({ "message": chatMessage}),
+          headers: {'Content-Type': 'application/json', 'X-Authorization': stoken},
+          body: JSON.stringify({ "message": chatMsg}),
         });
   
         // Check the response status
@@ -128,11 +135,12 @@ export async function getChatById(setChat, chatId) {
 };
 
 export async function postAddMember(chatId, userId){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/chat/'+ chatId +'/user/'+ userId, {
           method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-Authorization': loggedUser.Stoken},
+          headers: {'Content-Type': 'application/json', 'X-Authorization': stoken},
         });
   
         // Check the response status
@@ -150,11 +158,12 @@ export async function postAddMember(chatId, userId){
 };
 
 export async function deleteChatMember(chatId, memberId){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/chat/'+ chatId +'/user/'+ memberId, {
           method: 'DELETE',
-          headers: {'X-Authorization': loggedUser.Stoken},
+          headers: {'X-Authorization': stoken},
         });
   
         // Check the response status
@@ -172,12 +181,14 @@ export async function deleteChatMember(chatId, memberId){
 };
 
 export async function patchMessage(chatId, message, messageId){
+  const stoken = await AsyncStorage.getItem('stoken');
+  let chatMsg=message+" ";
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/chat/'+ chatId +'/message/'+ messageId, {
           method: 'PATCH',
-          headers: {'Content-Type': 'application/json', 'X-Authorization': loggedUser.Stoken},
-          body: JSON.stringify({ "message": message}),        
+          headers: {'Content-Type': 'application/json', 'X-Authorization': stoken},
+          body: JSON.stringify({ "message": chatMsg}),        
         });
   
         // Check the response status
@@ -195,11 +206,12 @@ export async function patchMessage(chatId, message, messageId){
 };
 
 export async function deleteMessage(chatId, messageId){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/chat/'+ chatId +'/message/'+ messageId, {
           method: 'DELETE',
-          headers: {'X-Authorization': loggedUser.Stoken},
+          headers: {'X-Authorization': stoken},
         });
   
         // Check the response status

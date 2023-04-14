@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { postSignUp } from './UserRequests';
+
+const ErrorBanner = ({ message }) => {
+  return (
+    <View style={styles.errorBanner}>
+      <Text style={{ color: 'white', fontWeight: 'bold' }}>{message}</Text>
+    </View>
+  );
+};
 
 export default function SignUp({ navigation }) {
   const [firstname, setFirstName] = useState('');
@@ -8,9 +16,41 @@ export default function SignUp({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (errorMessage) {
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 3000);
+    }
+  }, [errorMessage]);
 
   const handleSignUp = async () => {
-    // Implement your sign-up logic here
+    // Perform validation
+    if (!firstname || !lastname || !email || !password || !confirmPassword) {
+      setErrorMessage('All fields are required');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setErrorMessage('Invalid email format');
+      return;
+    }
+
+    if (password.length < 8 || !validatePasswordStrength(password)) {
+      setErrorMessage(
+        'Password must be at least 8 characters long and contain at least one uppercase letter, one number, and one special character'
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match');
+      return;
+    }
+
+    // If all validation checks pass, proceed with sign-up logic
     console.log(`{
       "first_name": "${firstname}",
       "last_name": "${lastname}",
@@ -18,18 +58,64 @@ export default function SignUp({ navigation }) {
       "password": "${password}"
     }`);
 
-    postSignUp(firstname,lastname,email,password);
-  };
+    postSignUp(firstname, lastname, email, password)
+      .then(response => {
+        // Check if response is successful (status code 201)
+        if (response.status === 201) {
+          // Navigate to SignIn screen
+          navigation.navigate('SignIn');
+        } else {
+          // Parse response body as JSON
+          response.text()
+            .then(data => {
+              // Extract error message from plain text data
+              const errorMessage = data || 'Sign up failed. Please try again.';
 
+              // Display error banner with error message
+              setErrorMessage(errorMessage);
+            })
+            .catch(error => {
+              // Display error banner with default error message
+              setErrorMessage('Sign up failed. Please try again.');
+            });
+        }
+      })
+      .catch(error => {
+        // Display error banner with default error message
+        setErrorMessage('Sign up failed. Please try again.');
+      });
+
+  };
 
   const handleSignIn = () => {
     // Implement your navigation logic to the sign-in page here
     navigation.navigate('SignIn');
   };
 
+  // Helper function to validate email format
+  const validateEmail = (email) => {
+    // Regular expression for email format validation
+    const emailRegex = /\S+@\S+\.\S+/;
+    return emailRegex.test(email);
+  };
+
+  // Helper function to validate password strength
+  const validatePasswordStrength = (password) => {
+    // Regular expressions for password strength validation
+    const uppercaseRegex = /[A-Z]/;
+    const numberRegex = /[0-9]/;
+    const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+    return (
+      uppercaseRegex.test(password) &&
+      numberRegex.test(password) &&
+      specialCharRegex.test(password)
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Sign Up</Text>
+      {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
       <TextInput
         style={styles.input}
         placeholder="First Name"
@@ -114,5 +200,20 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     color: '#007aff',
+  },
+  errorBanner: {
+    position: 'absolute',
+    top: 0, // Set top to 0 to position the error banner at the top of the screen
+    backgroundColor: 'red',
+    marginTop: 20,
+    padding: 10,
+    zIndex: 999,
+    borderRadius: 10,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: 'white',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });

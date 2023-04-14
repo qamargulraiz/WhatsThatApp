@@ -13,7 +13,16 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { getChatById, postMessage, postAddMember, deleteChatMember, patchMessage, deleteMessage } from './ChatRequests';
 import { URLaddress, loggedUser } from './App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome } from '@expo/vector-icons';
+
+const ErrorBanner = ({ message }) => {
+  return (
+    <View style={styles.errorBanner}>
+      <Text style={{ color: 'white', fontWeight: 'bold' }}>{message}</Text>
+    </View>
+  );
+};
 
 export default function Chat({ route }) {
   const { chatId } = route.params;
@@ -27,30 +36,77 @@ export default function Chat({ route }) {
   const [editMode, setEditMode] = useState(false);
   const scrollViewRef = useRef();
   const navigation = useNavigation();
+  const [isLoading, setIsLoading] = useState(true);
+  const [auserId, setAuserId] = useState("");
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    getChatById(setChat, chatId);
-  }, []);
+    if (errorMessage) {
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 3000);
+    }
+  }, [errorMessage]);
 
-  // Scroll to bottom of the message list whenever a new message is added
-  useEffect(() => {
-    scrollViewRef.current.scrollToEnd({ animated: true });
-  }, [chat.messages]);
-
-  // Function to handle sending a message
-  const handleSendMessage = async () => {
-    setInputText('');
-    console.log('Message sent:', inputText);
+  const fetchData = async () => {
     try {
-      await postMessage(chatId, inputText);
-      await getChatById(setChat, chatId);
+      const userId = await AsyncStorage.getItem('userId');
+      console.log("userId: " + userId);
+      setAuserId(userId); // Update the value of auserId using setAuserId
     } catch (error) {
-      console.log(error);
+      // Handle error
     }
   };
 
+  useEffect(() => {
+    const fetchDataAndChat = async () => {
+      try {
+        // Use Promise.all() to wait for both fetchData() and getChatById() to complete
+        await Promise.all([fetchData(), getChatById(setChat, chatId)]);
+        setIsLoading(false); // Set isLoading to false after both operations complete
+      } catch (error) {
+        // Handle error
+        setIsLoading(false);
+      }
+    };
+
+    fetchDataAndChat();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  }, [chat.messages, isLoading]);
+
+  if (isLoading) {
+    return <p>Loading...</p>;
+  }
+
+  // Function to handle sending a message
+  const handleSendMessage = async () => {
+    if (inputText.trim() !== '') { // Check if inputText is not empty after trimming whitespace
+      setInputText('');
+      console.log('Message sent:', inputText);
+      try {
+        await postMessage(chatId, inputText);
+        await getChatById(setChat, chatId);
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  };
+
+
   // Function to handle adding a member to the chat
   const handleAddMember = async () => {
+    if (userId.trim() === '') {
+      // Check if userId is empty or only contains whitespace
+      console.log('User ID is required');
+      setErrorMessage('User ID is required');
+      return;
+    }
+
     console.log('Adding member');
     try {
       await postAddMember(chatId, userId);
@@ -72,10 +128,11 @@ export default function Chat({ route }) {
     }
   };
 
-  const handleEditMessage = (messageId) => {
+  const handleEditMessage = (messageId, msg) => {
     setEditedMessageId(messageId);
     setEditMode(true);
     setSelectedMessage(null);
+    setEditedMessage(msg);
   };
 
   const handleSaveMessage = async (message, messageId) => {
@@ -102,6 +159,8 @@ export default function Chat({ route }) {
     }
   };
 
+
+
   return (
     <SafeAreaView style={styles.safeAreaContainer}>
       <View style={styles.headerContainer}>
@@ -113,6 +172,7 @@ export default function Chat({ route }) {
           <FontAwesome name="users" size={24} color="black" />
         </TouchableOpacity>
       </View>
+      {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
       <View style={styles.containerA}>
         {showMembers && (
           <View style={styles.membersOverlay}>
@@ -137,7 +197,13 @@ export default function Chat({ route }) {
                 style={styles.addMemberInput}
                 placeholder="Enter userId"
                 value={userId}
-                onChangeText={(value) => setUserId(value)}
+                onChangeText={(value) => {
+                  // Remove non-numeric characters from input
+                  const numericValue = value.replace(/[^0-9]/g, '');
+                  // Update state with cleaned input
+                  setUserId(numericValue);
+                }}
+                keyboardType='numeric'
               />
               <TouchableOpacity style={styles.addMemberButton} onPress={handleAddMember}>
                 <Text style={styles.addMemberButtonText}>Add Member</Text>
@@ -174,14 +240,19 @@ export default function Chat({ route }) {
                     <View style={styles.editMessageInputContainer}>
                       <TextInput
                         style={styles.editMessageInput}
-                        value={editedMessage || message.message}
-                        onChangeText={(text) => setEditedMessage(text)}
+                        value={editedMessage ? editedMessage : ''}
+                        onChangeText={(text) => {
+                          setEditedMessage(text); // Always set editedMessage to the input value
+                        }}
                         autoFocus
                       />
                       <TouchableOpacity
                         style={styles.saveButton}
                         onPress={() => {
-                          handleSaveMessage(editedMessage, message.message_id);
+                          // Check if editedMessage is empty or only contains whitespace characters
+                          if (editedMessage && editedMessage.trim().length > 0) {
+                            handleSaveMessage(editedMessage, message.message_id);
+                          }
                           setEditedMessageId(null); // clear the edit mode after saving
                         }}
                       >
@@ -204,7 +275,7 @@ export default function Chat({ route }) {
                   {selectedMessage === message.message_id && editedMessageId !== message.message_id && (
                     message.author.user_id === loggedUser.userId &&
                     <View style={styles.editDeleteIconsContainer}>
-                      <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id)}>
+                      <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id, message.message)}>
                         <FontAwesome name="edit" size={20} color="#007AFF" />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.deleteIconContainer} onPress={() => handleDeleteMessage(message.message_id)}>
@@ -216,12 +287,12 @@ export default function Chat({ route }) {
               </View>
             ))}
 
+
             {chat && chat.messages && chat.messages.length === 0 && (
               <Text style={styles.noMessagesText}>No messages yet.</Text>
             )}
 
           </ScrollView>
-
           <View style={styles.inputContainer}>
             <TextInput
               value={inputText}
@@ -294,11 +365,19 @@ const styles = StyleSheet.create({
   userMessageContainer: {
     backgroundColor: '#DCF8C6',
     alignSelf: 'flex-end',
-    borderTopRightRadius: 0
+    borderTopRightRadius: 20, 
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20, 
+    padding: 10, 
+    width: '50%' 
   },
   otherMessageContainer: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 0
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+    padding: 10, // Set padding
+    width: '50%' // Set max width to 50% of screen width
   },
   userMessageText: {
     color: '#000000',
@@ -309,7 +388,7 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 16,
     textAlign: 'left'
-  },
+  },  
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -422,5 +501,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  errorBanner: {
+    position: 'absolute',
+    backgroundColor: 'red',
+    marginTop: 20,
+    padding: 10,
+    zIndex: 999,
+    borderRadius: 10,
   },
 });

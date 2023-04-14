@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, TouchableWithoutFeedback, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, TouchableWithoutFeedback, FlatList, Picker } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Table, Row } from 'react-native-table-component';
-import { URLaddress, loggedUser } from './App';
+import { URLaddress } from './App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImagePicker from 'react-native-image-picker';
 import axios from 'axios';
 import { Camera } from 'expo-camera';
@@ -310,8 +311,45 @@ function Profile() {
   const [imageUri, setImageUri] = useState(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [selectedOption, setSelectedOption] = useState('all'); // Initial selected option value, can be 'all' or 'contacts'
+  const [limit, setLimit] = useState(10);
+  const [offset, setoffset] = useState(0);
+
 
   const cameraRef = useRef(null);
+
+  let stoken = "";
+  let auserId = "";
+  let pwd = "";
+  const fetchData = async () => {
+    try {
+      stoken = await AsyncStorage.getItem('stoken');
+      auserId = await AsyncStorage.getItem('userId');
+      pwd = await AsyncStorage.getItem('pwd');
+      // Do something with stoken
+      console.log("this tok: " + auserId);
+    } catch (error) {
+      console.log("retrieve)) : " + error);
+    }
+  };
+
+  const fetchPhoto = async () => {
+    try {
+      // Send a GET request to retrieve user photo
+      const response = await fetch(`${URLaddress}/user/${auserId}/photo`, {
+        headers: { 'X-Authorization': stoken, 'Accept': 'image/png' },
+      });
+      const resBlob = await response.blob(); // extract the response blob from the response object
+
+      // create a URL for the blob data
+      const data = URL.createObjectURL(resBlob);
+
+      // update the state variables with the photo and isLoading flag
+      setImageUri(data);
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
 
   useEffect(() => {
@@ -323,41 +361,25 @@ function Profile() {
   }, [errorMessage]);
 
   useEffect(() => {
-    // call the getUserInfo function and update state variables with the user information
-    getUserInfo(loggedUser.userId)
-      .then((data) => {
+    const fetchDataAndUserInfo = async () => {
+      try {
+        await fetchData(); // Wait for fetchData() to complete
+        console.log("this is id " + auserId);
+        const data = await getUserInfo(auserId); // Wait for getUserInfo() to complete
+        await fetchPhoto(); // invoke the fetchPhoto and wait
         setName(data.first_name);
         setSurname(data.last_name);
         setEmail(data.email);
-        setnewPassword(loggedUser.pwd);
-      })
-      .catch((error) => {
+        setnewPassword(pwd);
+      } catch (error) {
         console.error('Error getting user info: ', error);
-      });
-  }, []);
-
-  useEffect(() => {
-    // call the getUserInfo function and update state variables with the user information
-    const fetchPhoto = async () => {
-      try {
-        // Send a GET request to retrieve user photo
-        const response = await fetch(`${URLaddress}/user/${loggedUser.userId}/photo`, {
-          headers: {'X-Authorization': loggedUser.Stoken, 'Accept' : 'image/png'},
-        });
-        const resBlob = await response.blob(); // extract the response blob from the response object
-  
-        // create a URL for the blob data
-        const data = URL.createObjectURL(resBlob);
-  
-        // update the state variables with the photo and isLoading flag
-        setImageUri(data);
-      } catch (err) {
-        console.log(err);
       }
     };
-  
-    fetchPhoto(); // invoke the fetchPhoto function
+
+    fetchDataAndUserInfo();
   }, []);
+
+
 
   const handleValidation = () => {
     if (!name.trim() || !surname.trim() || !email.trim() || !newPassword.trim()) {
@@ -365,14 +387,31 @@ function Profile() {
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Regex for email validation
+    if (!emailRegex.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    // Password validation
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[@$!%*?&])(?=.*[0-9])[A-Za-z\d@$!%*?&]{8,}$/; // Regex for password validation
+    if (!passwordRegex.test(newPassword.trim())) {
+      setErrorMessage('Password must be at least 8 characters long and contain at least 1 uppercase letter and 1 special character.');
+      return;
+    }
+
     setShowInput(true);
   }
 
+
   const handleUpdateProfile = async () => {
+    pwd = await AsyncStorage.getItem('pwd');
+    auserId = await AsyncStorage.getItem('userId');
     if (!currentPassword.trim()) {
       setErrorMessage('Please enter a Valid Password.');
       return;
-    } else if (currentPassword !== loggedUser.pwd) {
+    } else if (currentPassword !== pwd) {
       setErrorMessage('Wrong Password.');
       return;
     }
@@ -380,7 +419,7 @@ function Profile() {
     setShowInput(false);
 
     // retrieve current user info
-    const currentUserInfo = await getUserInfo(loggedUser.userId);
+    const currentUserInfo = await getUserInfo(auserId);
 
     // create new user info object with updated fields
     const updatedUserInfo = {
@@ -405,7 +444,7 @@ function Profile() {
     // patch only the fields that have changed
     if (Object.keys(updatedFields).length > 0) {
       await patchUserInfo(updatedFields);
-
+      await AsyncStorage.setItem('pwd', newPassword);
     }
 
     // set showUpdate to false to hide the update form
@@ -421,7 +460,6 @@ function Profile() {
   const handleLogout = async () => { // Add async keyword here
     // navigate the user back to the sign-in screen
     await postLogout();
-    console.log(loggedUser);
     navigation.navigate('SignIn');
   };
 
@@ -429,11 +467,16 @@ function Profile() {
     navigation.navigate('Camera');
   }
 
+  const handleCancelPress = () => {
+    setShowUpdate(false);
+  };
+
   const searchUser = async (query) => {
     try {
-      const response = await fetch(URLaddress + `/search?q=${query}`, {
+      await fetchData(); // Retrieve stoken value
+      const response = await fetch(`${URLaddress}/search?q=${query}&search_in=${selectedOption}&limit=${limit}&offset=${offset}`, {
         headers: {
-          'X-Authorization': loggedUser.Stoken,
+          'X-Authorization': stoken, // Use stoken retrieved from AsyncStorage
         },
       });
       const result = await response.json();
@@ -442,6 +485,8 @@ function Profile() {
       console.error(error);
     }
   };
+
+
 
   const tableHead = ['ID', 'First Name', 'Last Name', 'Email'];
 
@@ -495,9 +540,14 @@ function Profile() {
             value={newPassword}
             onChangeText={setnewPassword}
           />
-          <TouchableOpacity style={styles.updateButtonProfile} onPress={handleValidation}>
-            <Text style={styles.updateButtonText}>Update</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.editButton} onPress={handleValidation}>
+              <Text style={styles.updateButtonText}>Update</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleCancelPress}>
+              <Text style={styles.logoutButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <View style={styles.profileViewContainer}>
@@ -549,6 +599,56 @@ function Profile() {
             <Text style={styles.searchButtonText}>Search</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.dropdownContainer}>
+          <Picker
+            selectedValue={selectedOption}
+            onValueChange={(itemValue, itemIndex) => setSelectedOption(itemValue)}
+            style={styles.dropdown}
+          >
+            <Picker.Item label="All" value="all" />
+            <Picker.Item label="Contacts" value="contacts" />
+          </Picker>
+        </View>
+        <View style={styles.limitContainer}>
+          <Text style={styles.limitLabel}>Limit: {' '}
+            <TextInput
+              style={styles.limitInput}
+              keyboardType="numeric"
+              value={limit ? limit.toString() : ''}
+              onChangeText={(text) => {
+                // Check if input is empty
+                if (text === '') {
+                  // If empty, set the limit state to null
+                  setLimit(null);
+                } else {
+                  // If not empty and is a valid number, set the limit state to the input value
+                  if (!isNaN(text)) {
+                    setLimit(parseInt(text));
+                  }
+                }
+              }}
+            />
+          </Text>
+          <Text style={styles.limitLabel}>Offset: {' '}
+            <TextInput
+              style={styles.limitInput}
+              keyboardType="numeric"
+              value={offset ? offset.toString() : ''}
+              onChangeText={(text) => {
+                // Check if input is empty
+                if (text === '') {
+                  // If empty, set the limit state to null
+                  setoffset(null);
+                } else {
+                  // If not empty and is a valid number, set the limit state to the input value
+                  if (!isNaN(text)) {
+                    setoffset(parseInt(text));
+                  }
+                }
+              }}
+            />
+          </Text>
+        </View>
         {results.length > 0 && (
           <View style={styles.resultsContainer}>
             <Table borderStyle={{ borderWidth: 1 }}>
@@ -559,8 +659,6 @@ function Profile() {
             </Table>
           </View>
         )}
-
-
       </View>
     </View>
 
@@ -797,6 +895,16 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
+  dropdownContainer: {
+    marginBottom: 16,
+  },
+  dropdown: {
+    height: 40,
+    width: 150,
+    borderColor: '#CCCCCC',
+    borderWidth: 1,
+    borderRadius: 8,
+  },
   resultsContainer: {
     marginTop: 16,
   },
@@ -914,6 +1022,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 100,
   },
   inputContainer: {
     position: 'absolute',
@@ -927,6 +1036,7 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 101,
   },
   saveButton: {
     backgroundColor: '#3366FF',
@@ -934,6 +1044,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginTop: 10,
     alignItems: 'center',
+    zIndex: 102,
   },
   saveButtonText: {
     color: '#fff',

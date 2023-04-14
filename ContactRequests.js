@@ -1,17 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { URLaddress, loggedUser } from './App';
-import { FontAwesome } from '@expo/vector-icons';
+import { URLaddress } from './App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export function getContacts([contacts, setContacts]) {
   
       // Use an async function inside useEffect to fetch data
       async function fetchContacts() {
+        const stoken = await AsyncStorage.getItem('stoken');
         try {
           // Send a GET request with the user's authorization token
           const response = await fetch(URLaddress + '/contacts', {
-            headers: {'X-Authorization': loggedUser.Stoken},
+            headers: {'X-Authorization': stoken},
           });
   
           // Check the response status
@@ -34,11 +32,12 @@ export function getContacts([contacts, setContacts]) {
 
 
 export async function postContact(userId){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a POST request with the user's signup data
         const response = await fetch(URLaddress +'/user/'+ userId + '/contact', {
           method: 'POST',
-          headers: {'X-Authorization': loggedUser.Stoken},
+          headers: {'X-Authorization': stoken},
         });
   
         // Check the response status
@@ -56,11 +55,12 @@ export async function postContact(userId){
 };
 
 export async function deleteContact(userId){
+  const stoken = await AsyncStorage.getItem('stoken');
     try {
         // Send a DELETE request with the user's signup data
         const response = await fetch(URLaddress +'/user/'+ userId + '/contact', {
           method: 'DELETE',
-          headers: {'X-Authorization': loggedUser.Stoken},
+          headers: {'X-Authorization': stoken},
         });
   
         // Check the response status
@@ -81,10 +81,11 @@ export function getBlockedContacts([blockedcontacts,setBlockedContacts]) {
   
   // Use an async function inside useEffect to fetch data
   async function fetchContacts() {
+    const stoken = await AsyncStorage.getItem('stoken');
     try {
       // Send a GET request with the user's authorization token
       const response = await fetch(URLaddress + '/blocked', {
-        headers: {'X-Authorization': loggedUser.Stoken},
+        headers: {'X-Authorization': stoken},
       });
 
       // Check the response status
@@ -107,11 +108,12 @@ return blockedcontacts;
 }
 
 export async function postBlockContact(userId){
+  const stoken = await AsyncStorage.getItem('stoken');
   try {
       // Send a POST request with the user's signup data
       const response = await fetch(URLaddress +'/user/'+ userId + '/block', {
         method: 'POST',
-        headers: {'X-Authorization': loggedUser.Stoken},
+        headers: {'X-Authorization': stoken},
       });
 
       // Check the response status
@@ -129,11 +131,12 @@ export async function postBlockContact(userId){
 };
 
 export async function deleteBlockedContact(userId){
+  const stoken = await AsyncStorage.getItem('stoken');
   try {
       // Send a DELETE request with the user's signup data
       const response = await fetch(URLaddress +'/user/'+ userId + '/block', {
         method: 'DELETE',
-        headers: {'X-Authorization': loggedUser.Stoken},
+        headers: {'X-Authorization': stoken},
       });
 
       // Check the response status

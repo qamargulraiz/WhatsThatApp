@@ -1,8 +1,9 @@
 import { Camera, CameraType, onCameraReady, CameraPictureOptions } from 'expo-camera';
 import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { URLaddress, loggedUser } from './App';
+import { URLaddress } from './App';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CameraSendToServer() {
     const [type, setType] = useState(CameraType.back);
@@ -35,12 +36,14 @@ export default function CameraSendToServer() {
             name: 'photo.jpg', // or any other filename with the appropriate extension
         });
 
+        const stoken = await AsyncStorage.getItem('stoken');
+        const auserId = await AsyncStorage.getItem('userId');
         try {
-            const response = await fetch(`${URLaddress}/user/${loggedUser.userId}/photo`, {
+            const response = await fetch(`${URLaddress}/user/${auserId}/photo`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'image/jpeg', // or 'image/png'
-                    'X-Authorization': loggedUser.Stoken,
+                    'X-Authorization': stoken,
                 },
                 body: blob,
             });
