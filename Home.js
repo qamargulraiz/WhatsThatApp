@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, TouchableWithoutFeedback, FlatList, Picker } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, TouchableWithoutFeedback, FlatList, Picker, Button } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Table, Row } from 'react-native-table-component';
 import { URLaddress } from './App';
@@ -11,8 +11,9 @@ import * as FileSystem from 'expo-file-system';
 import { getContacts, postContact, deleteContact, getBlockedContacts, postBlockContact, deleteBlockedContact } from './ContactRequests';
 import CameraTakePicture from './cameratoServer';
 import { FontAwesome } from '@expo/vector-icons';
-import { getUserInfo, patchUserInfo, postLogout } from './UserRequests';
+import { getUserInfo, patchUserInfo, postLogout, fetchData } from './UserRequests';
 import { getChats, postChat, patchChat } from './ChatRequests';
+import { loggedUser } from './App';
 
 
 
@@ -90,7 +91,7 @@ function Chats() {
   }
 
   const handleChatPress = (chatId) => {
-    navigation.navigate('Chat', { chatId });
+    navigation.navigate('Chat', { chatId, loggedUser });
   }
 
   function handleHideInput() {
@@ -118,16 +119,18 @@ function Chats() {
       {showInput ? (
         <>
           <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Chat name"
-              value={chatName}
-              onChangeText={setChatName}
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={editChatId ? handleSaveEdit : handleCreateChat}>
-              <Text style={styles.saveButtonText}>{editChatId ? 'Save' : 'Create'}</Text>
-            </TouchableOpacity>
+          <View style={styles.inputContainerParent}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Chat name"
+                value={chatName}
+                onChangeText={setChatName}
+              />
+              <TouchableOpacity style={styles.saveButton} onPress={editChatId ? handleSaveEdit : handleCreateChat}>
+                <Text style={styles.saveButtonText}>{editChatId ? 'Save' : 'Create'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </>
       ) : (
@@ -149,6 +152,12 @@ function Contacts() {
   const [userId, setUserId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [selectedOption, setSelectedOption] = useState('all'); // Initial selected option value, can be 'all' or 'contacts'
+  const [limit, setLimit] = useState(10);
+  const [offset, setoffset] = useState(0);
+
   useEffect(() => {
     getContacts([contacts, setContacts]);
     getBlockedContacts([blockedcontacts, setBlockedContacts]);
@@ -166,13 +175,13 @@ function Contacts() {
     setShowInput(true);
   };
 
-  const handleSaveContact = () => {
-    if (!userId.trim()) {
+  const handleSaveContact = (uid) => {
+    if (!uid.trim()) {
       setErrorMessage('Please enter a valid User Id.');
       return;
     }
     // call API to save the contact with the provided user ID
-    postContact(userId)
+    postContact(uid)
       .then(() => {
         setShowInput(false);
         setUserId('');
@@ -223,10 +232,51 @@ function Contacts() {
       });
   };
 
+  let stoken = "";
+  let auserId = "";
+  let pwd = "";
+  const fetchData = async () => {
+    try {
+      stoken = await AsyncStorage.getItem('stoken');
+      auserId = await AsyncStorage.getItem('userId');
+      pwd = await AsyncStorage.getItem('pwd');
+      // Do something with stoken
+      console.log("this tok: " + auserId);
+    } catch (error) {
+      console.log("retrieve)) : " + error);
+    }
+  };
+
+  const searchUser = async (query) => {
+    try {
+      await fetchData(); // Retrieve stoken value
+      const response = await fetch(`${URLaddress}/search?q=${query}&search_in=${selectedOption}&limit=${limit}&offset=${offset}`, {
+        headers: {
+          'X-Authorization': stoken, // Use stoken retrieved from AsyncStorage
+        },
+      });
+      const result = await response.json();
+      setResults(result);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const tableHead = ['ID', 'First Name', 'Last Name', 'Email'];
+
+  const tableData = results.map((user) => [
+    user.user_id.toString(),
+    user.given_name,
+    user.family_name,
+    user.email,
+  ]);
+
+
 
   return (
     <View style={styles.tabContent}>
       {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
+
       {contacts.length > 0 && (
         <>
           <View style={styles.unblockedHeaderContainer}>
@@ -275,17 +325,93 @@ function Contacts() {
       {showInput ? (
         <>
           <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="User ID"
-              value={userId}
-              onChangeText={setUserId}
-              keyboardType="numeric"
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveContact}>
-              <Text style={styles.saveButtonText}>Save</Text>
-            </TouchableOpacity>
+          <View style={styles.inputContainerParent}>
+            <View style={styles.inputContainer}>
+              <View style={styles.searchfeaturecontainer}>
+                <View style={styles.searchContainer}>
+                  <TextInput
+                    style={styles.inputProfile}
+                    placeholder="Search for a user"
+                    onChangeText={setQuery}
+                  />
+                  <TouchableOpacity onPress={() => searchUser(query)} style={styles.searchButton}>
+                    <Text style={styles.searchButtonText}>Search</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.dropdownContainer}>
+                  <Picker
+                    selectedValue={selectedOption}
+                    onValueChange={(itemValue, itemIndex) => setSelectedOption(itemValue)}
+                    style={styles.dropdown}
+                  >
+                    <Picker.Item label="All" value="all" />
+                    <Picker.Item label="Contacts" value="contacts" />
+                  </Picker>
+                </View>
+                <View style={styles.limitContainer}>
+                  <Text style={styles.limitLabel}>Limit: {' '}
+                    <TextInput
+                      style={styles.limitInput}
+                      keyboardType="numeric"
+                      value={limit ? limit.toString() : ''}
+                      onChangeText={(text) => {
+                        // Check if input is empty
+                        if (text === '') {
+                          // If empty, set the limit state to null
+                          setLimit(null);
+                        } else {
+                          // If not empty and is a valid number, set the limit state to the input value
+                          if (!isNaN(text)) {
+                            setLimit(parseInt(text));
+                          }
+                        }
+                      }}
+                    />
+                  </Text>
+                  <Text style={styles.limitLabel}>Offset: {' '}
+                    <TextInput
+                      style={styles.limitInput}
+                      keyboardType="numeric"
+                      value={offset ? offset.toString() : ''}
+                      onChangeText={(text) => {
+                        // Check if input is empty
+                        if (text === '') {
+                          // If empty, set the limit state to null
+                          setoffset(null);
+                        } else {
+                          // If not empty and is a valid number, set the limit state to the input value
+                          if (!isNaN(text)) {
+                            setoffset(parseInt(text));
+                          }
+                        }
+                      }}
+                    />
+                  </Text>
+                </View>
+                {results.length > 0 && (
+                  <View style={styles.resultsContainer}>
+                    <Table borderStyle={{ borderWidth: 1 }}>
+                      <Row data={tableHead} style={styles.head} textStyle={styles.text} />
+                      {tableData.map((rowData, index) => (
+                        <Row
+                          key={index}
+                          data={[
+                            <Button
+                              title={rowData[0]}
+                              onPress={() => handleSaveContact(rowData[0])}
+                              key={rowData[0]}
+                            />,
+                            ...rowData.slice(1),
+                          ]}
+                          style={[styles.row, index % 2 && { backgroundColor: '#F7F6E7' }]}
+                          textStyle={styles.text}
+                        />
+                      ))}
+                    </Table>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
         </>
       ) : (
@@ -571,17 +697,19 @@ function Profile() {
       {showInput ? (
         <>
           <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.inputProfile}
-              placeholder="Validate Current Password"
-              secureTextEntry={true}
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile}>
-              <Text style={styles.saveButtonText}>Save</Text>
-            </TouchableOpacity>
+          <View style={styles.inputContainerParent}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.inputProfile}
+                placeholder="Validate Current Password"
+                secureTextEntry={true}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+              />
+              <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile}>
+                <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </>
       ) : (
@@ -1024,19 +1152,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 100,
   },
+  inputContainerParent: {
+    flex: 1,
+    left: '38%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 101,
+  },
   inputContainer: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
     transform: [{ translateX: -150 }, { translateY: -100 }],
-    width: 300,
-    height: 200,
+    minWidth: 300,
+    minHeight: 200,
     backgroundColor: '#f0f0f0',
     borderRadius: 10,
     padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 101,
   },
   saveButton: {
     backgroundColor: '#3366FF',

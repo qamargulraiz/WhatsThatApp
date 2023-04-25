@@ -24,6 +24,7 @@ export default function SignIn({ navigation }) {
   
         if (userId && userId !== '') {
           // userId exists and is not empty, navigate to Home screen
+          loggedUser.userId=userId;
           navigation.navigate('Home');
         }
       } catch (error) {

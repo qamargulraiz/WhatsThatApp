@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { getChatById, postMessage, postAddMember, deleteChatMember, patchMessage, deleteMessage } from './ChatRequests';
-import { URLaddress, loggedUser } from './App';
+import { getContacts } from './ContactRequests';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome } from '@expo/vector-icons';
 
@@ -25,11 +25,11 @@ const ErrorBanner = ({ message }) => {
 };
 
 export default function Chat({ route }) {
-  const { chatId } = route.params;
+  const { chatId, loggedUser } = route.params; // Destructure the lprops from route.params
+  const loggedUid = loggedUser.userId;
   const [chat, setChat] = useState({ messages: [] });
   const [inputText, setInputText] = useState('');
   const [showMembers, setShowMembers] = useState(false);
-  const [userId, setUserId] = useState('');
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [editedMessageId, setEditedMessageId] = useState(null);
   const [editedMessage, setEditedMessage] = useState('');
@@ -37,8 +37,9 @@ export default function Chat({ route }) {
   const scrollViewRef = useRef();
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(true);
-  const [auserId, setAuserId] = useState("");
   const [errorMessage, setErrorMessage] = useState('');
+  const [showInput, setShowInput] = useState(false);
+  const [contacts, setContacts] = useState([]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -47,11 +48,12 @@ export default function Chat({ route }) {
       }, 3000);
     }
   }, [errorMessage]);
-
+  console.log("logged user is: " + loggedUid);
   const fetchData = async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
       console.log("userId: " + userId);
+
       setAuserId(userId); // Update the value of auserId using setAuserId
     } catch (error) {
       // Handle error
@@ -76,6 +78,7 @@ export default function Chat({ route }) {
   useEffect(() => {
     if (!isLoading) {
       scrollViewRef.current.scrollToEnd({ animated: true });
+      console.log("loaded fa");
     }
   }, [chat.messages, isLoading]);
 
@@ -97,24 +100,21 @@ export default function Chat({ route }) {
     }
   };
 
+  const handleViewContacts = async () => {
+    setShowInput(true);
+    getContacts([contacts, setContacts]);
+  };
 
   // Function to handle adding a member to the chat
-  const handleAddMember = async () => {
-    if (userId.trim() === '') {
-      // Check if userId is empty or only contains whitespace
-      console.log('User ID is required');
-      setErrorMessage('User ID is required');
-      return;
-    }
-
+  const handleAddMember = async (uid) => {
     console.log('Adding member');
     try {
-      await postAddMember(chatId, userId);
-      setUserId('');
+      await postAddMember(chatId, uid);
       await getChatById(setChat, chatId);
     } catch (error) {
       console.log(error);
     }
+    setShowInput(false);
   };
 
   // Function to handle removing a member from the chat
@@ -173,6 +173,33 @@ export default function Chat({ route }) {
         </TouchableOpacity>
       </View>
       {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
+      {showInput ? (
+        <>
+          <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
+          <View style={styles.contactContainerParent}>
+            <View style={styles.contactContainer}>
+              {contacts.length > 0 && (
+                <>
+                  <View style={styles.unblockedHeaderContainer}>
+                    <Text style={styles.contactHeaderText}>Select a contact to add</Text>
+                  </View>
+                  {contacts.map((contact, index) => (
+                    <View key={contact.user_id} style={styles.homeItem}>
+                      <View style={styles.homeItemView}>
+                        <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleAddMember(contact.user_id)}>
+                          <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          </View>
+        </>
+      ) : (
+        <></>
+      )}
       <View style={styles.containerA}>
         {showMembers && (
           <View style={styles.membersOverlay}>
@@ -193,19 +220,7 @@ export default function Chat({ route }) {
               ))}
             </View>
             <View style={styles.addMemberContainer}>
-              <TextInput
-                style={styles.addMemberInput}
-                placeholder="Enter userId"
-                value={userId}
-                onChangeText={(value) => {
-                  // Remove non-numeric characters from input
-                  const numericValue = value.replace(/[^0-9]/g, '');
-                  // Update state with cleaned input
-                  setUserId(numericValue);
-                }}
-                keyboardType='numeric'
-              />
-              <TouchableOpacity style={styles.addMemberButton} onPress={handleAddMember}>
+              <TouchableOpacity style={styles.addMemberButton} onPress={handleViewContacts}>
                 <Text style={styles.addMemberButtonText}>Add Member</Text>
               </TouchableOpacity>
             </View>
@@ -231,8 +246,7 @@ export default function Chat({ route }) {
                   : null}
                 <TouchableOpacity
                   style={[
-                    styles.messageContainer,
-                    message.author.user_id === loggedUser.userId ? styles.userMessageContainer : styles.otherMessageContainer
+                    String(message.author.user_id) === String(loggedUid) ? styles.userMessageContainer : styles.otherMessageContainer
                   ]}
                   onPress={() => setSelectedMessage(message.message_id)}
                 >
@@ -261,10 +275,10 @@ export default function Chat({ route }) {
                     </View>
                     :
                     <Text>
-                      <Text style={message.author.user_id === loggedUser.userId ? styles.userMessageText : styles.otherMessageText}>
-                        {message.author.user_id === loggedUser.userId ? '' : `${message.author.first_name}: `}
+                      <Text style={String(message.author.user_id) === String(loggedUid) ? styles.userMessageText : styles.otherMessageText}>
+                        {String(message.author.user_id) === String(loggedUid) === loggedUid ? '' : `${message.author.first_name}: `}
                       </Text>
-                      <Text style={message.author.user_id === loggedUser.userId ? styles.userMessageText : styles.otherMessageText}>
+                      <Text style={String(message.author.user_id) === String(loggedUid) ? styles.userMessageText : styles.otherMessageText}>
                         {message.message}
                       </Text>
                       <Text style={styles.messageTime}>
@@ -273,7 +287,7 @@ export default function Chat({ route }) {
                     </Text>
                   }
                   {selectedMessage === message.message_id && editedMessageId !== message.message_id && (
-                    message.author.user_id === loggedUser.userId &&
+                    String(message.author.user_id) === String(loggedUid) &&
                     <View style={styles.editDeleteIconsContainer}>
                       <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id, message.message)}>
                         <FontAwesome name="edit" size={20} color="#007AFF" />
@@ -365,11 +379,11 @@ const styles = StyleSheet.create({
   userMessageContainer: {
     backgroundColor: '#DCF8C6',
     alignSelf: 'flex-end',
-    borderTopRightRadius: 20, 
+    borderTopRightRadius: 20,
     borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20, 
-    padding: 10, 
-    width: '50%' 
+    borderBottomLeftRadius: 20,
+    padding: 10,
+    width: '50%'
   },
   otherMessageContainer: {
     backgroundColor: '#FFFFFF',
@@ -388,7 +402,7 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 16,
     textAlign: 'left'
-  },  
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -477,29 +491,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     margin: 20,
   },
-  addMemberInput: {
-    flex: 2,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    height: '100%',
-    width: '90%',
-    textAlign: 'center',
-    fontSize: 18,
-    borderTopLeftRadius: 10,
-    borderBottomLeftRadius: 10,
-  },
   addMemberButton: {
     flex: 1,
     backgroundColor: '#3366FF',
     padding: 10,
     alignItems: 'center',
     height: '100%',
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
+    borderRadius: 10,
   },
   addMemberButtonText: {
     color: '#fff',
     textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 100,
+  },
+  contactContainerParent: {
+    flex: 1,
+    left: '38%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 101,
+  },
+  contactContainer: {
+    position: 'absolute',
+    transform: [{ translateX: -150 }, { translateY: -100 }],
+    minWidth: 300,
+    minHeight: 200,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  homeItem: {
+    width: '100%',
+    padding: 20,
+    backgroundColor: '#f0f0f0',
+    paddingTop: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  homeItemView: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  homeItemName: {
+    flex: 5,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  unblockedHeaderContainer: {
+    backgroundColor: '#b3e6d1',
+    alignItems: 'center',
+    width: '100%',
+    padding: 10,
+  },
+  contactHeaderText: {
+    color: '#000000',
+    fontSize: 16,
     fontWeight: 'bold',
   },
   errorBanner: {
