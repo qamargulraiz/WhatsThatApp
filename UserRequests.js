@@ -18,7 +18,6 @@ export async function postSignUp(firstname, lastname, email, password) {
   } catch (error) {
     console.error('Sign up failed:', error);
   }
-
 }
 
 export async function getUserInfo(userId) {
@@ -40,7 +39,6 @@ export async function getUserInfo(userId) {
   } catch (error) {
     console.error('Get user info error:', error);
   }
-
 }
 
 export async function patchUserInfo(patchBody) {
@@ -70,7 +68,6 @@ export async function patchUserInfo(patchBody) {
   } catch (error) {
     console.error('Sign up failed:', error);
   }
-
 }
 
 export async function postLogout() {
@@ -101,5 +98,3 @@ export async function postLogout() {
   } catch (error) {
     console.error('Logout failed:', error);
   }
-
-}

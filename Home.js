@@ -530,7 +530,6 @@ function Profile() {
     setShowInput(true);
   }
 
-
   const handleUpdateProfile = async () => {
     pwd = await AsyncStorage.getItem('pwd');
     auserId = await AsyncStorage.getItem('userId');
@@ -594,22 +593,8 @@ function Profile() {
   }
 
   const handleCancelPress = () => {
-    setShowUpdate(false);
-  };
-
-  const searchUser = async (query) => {
-    try {
-      await fetchData(); // Retrieve stoken value
-      const response = await fetch(`${URLaddress}/search?q=${query}&search_in=${selectedOption}&limit=${limit}&offset=${offset}`, {
-        headers: {
-          'X-Authorization': stoken, // Use stoken retrieved from AsyncStorage
-        },
-      });
-      const result = await response.json();
-      setResults(result);
-    } catch (error) {
-      console.error(error);
-    }
+    setShowUpdate(false)
+  }
   };
 
 
@@ -799,7 +784,6 @@ export default function Home({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Nav bar */}
       <View style={styles.navBar}>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'Profile' && styles.activeTabButton]}
