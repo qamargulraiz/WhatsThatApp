@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react'
 import {
   SafeAreaView,
   StyleSheet,
@@ -9,157 +9,235 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { getChatById, postMessage, postAddMember, deleteChatMember, patchMessage, deleteMessage } from './ChatRequests';
-import { getContacts } from './ContactRequests';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FontAwesome } from '@expo/vector-icons';
+} from 'react-native'
+import { useNavigation } from '@react-navigation/native'
+import { getChatById, postMessage, postAddMember, deleteChatMember, patchMessage, deleteMessage } from './ChatRequests'
+import { getContacts } from './ContactRequests'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { FontAwesome } from '@expo/vector-icons'
+import PropTypes from 'prop-types'
 
+// Error banner appears on top of screen
 const ErrorBanner = ({ message }) => {
   return (
     <View style={styles.errorBanner}>
       <Text style={{ color: 'white', fontWeight: 'bold' }}>{message}</Text>
     </View>
-  );
-};
+  )
+}
 
-export default function Chat({ route }) {
-  const { chatId, loggedUser } = route.params; // Destructure the lprops from route.params
-  const loggedUid = loggedUser.userId;
-  const [chat, setChat] = useState({ messages: [] });
-  const [inputText, setInputText] = useState('');
-  const [showMembers, setShowMembers] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState(null);
-  const [editedMessageId, setEditedMessageId] = useState(null);
-  const [editedMessage, setEditedMessage] = useState('');
-  const [editMode, setEditMode] = useState(false);
-  const scrollViewRef = useRef();
-  const navigation = useNavigation();
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [showInput, setShowInput] = useState(false);
-  const [contacts, setContacts] = useState([]);
+ErrorBanner.propTypes = {
+  message: PropTypes.string.isRequired
+}
+
+Chat.propTypes = {
+  route: PropTypes.shape({
+    params: PropTypes.shape({
+      chatId: PropTypes.string.isRequired,
+      loggedUser: PropTypes.shape({
+        userId: PropTypes.string.isRequired
+      }).isRequired
+    }).isRequired
+  }).isRequired
+}
+
+export default function Chat ({ route }) {
+  const { chatId, loggedUser } = route.params // Destructure the lprops from route.params
+  const loggedUid = loggedUser.userId
+  const [chat, setChat] = useState({ messages: [] })
+  const [inputText, setInputText] = useState('')
+  const [showMembers, setShowMembers] = useState(false)
+  const [showDrafts, setShowDrafts] = useState(false)
+  const [selectedMessage, setSelectedMessage] = useState(null)
+  const [editedMessageId, setEditedMessageId] = useState(null)
+  const [editedMessage, setEditedMessage] = useState('')
+  const scrollViewRef = useRef()
+  const navigation = useNavigation()
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [showInput, setShowInput] = useState(false)
+  const [contacts, setContacts] = useState([])
+  const [drafts, setDrafts] = useState([])
+  const [selectedDraft, setSelectedDraft] = useState('')
 
   useEffect(() => {
     if (errorMessage) {
       setTimeout(() => {
-        setErrorMessage('');
-      }, 3000);
+        setErrorMessage('')
+      }, 3000)
     }
-  }, [errorMessage]);
-  console.log("logged user is: " + loggedUid);
+  }, [errorMessage])
+
+  console.log('logged user is: ' + loggedUid)
+
   const fetchData = async () => {
     try {
-      const userId = await AsyncStorage.getItem('userId');
-      console.log("userId: " + userId);
-
-      setAuserId(userId); // Update the value of auserId using setAuserId
+      const userId = await AsyncStorage.getItem('userId')
+      console.log('userId: ' + userId)
     } catch (error) {
-      // Handle error
+      console.log(error)
     }
-  };
+  }
 
   useEffect(() => {
     const fetchDataAndChat = async () => {
       try {
         // Use Promise.all() to wait for both fetchData() and getChatById() to complete
-        await Promise.all([fetchData(), getChatById(setChat, chatId)]);
-        setIsLoading(false); // Set isLoading to false after both operations complete
+        await Promise.all([fetchData(), getChatById(setChat, chatId)])
+        setIsLoading(false) // Set isLoading to false after both operations complete
       } catch (error) {
-        // Handle error
-        setIsLoading(false);
+        console.log(error)
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchDataAndChat();
-  }, []);
+    fetchDataAndChat()
+  }, [])
 
   useEffect(() => {
     if (!isLoading) {
-      scrollViewRef.current.scrollToEnd({ animated: true });
-      console.log("loaded fa");
+      scrollViewRef.current.scrollToEnd({ animated: true })
+      console.log('loaded fa')
     }
-  }, [chat.messages, isLoading]);
+  }, [chat.messages, isLoading])
 
   if (isLoading) {
-    return <p>Loading...</p>;
+    return <p>Loading...</p>
   }
 
   // Function to handle sending a message
   const handleSendMessage = async () => {
-    if (inputText.trim() !== '') { // Check if inputText is not empty after trimming whitespace
-      setInputText('');
-      console.log('Message sent:', inputText);
+    if (inputText.trim() !== '') {
+      console.log('Message sent:', inputText)
+      setInputText('')
       try {
-        await postMessage(chatId, inputText);
-        await getChatById(setChat, chatId);
+        await postMessage(chatId, inputText)
+        await getChatById(setChat, chatId)
+        // Delete selected draft from the drafts array
+        const updatedDrafts = drafts.filter((draft) => draft !== selectedDraft)
+        await AsyncStorage.setItem('Chatdraft' + chatId, JSON.stringify(updatedDrafts))
       } catch (error) {
-        console.log(error);
+        console.log(error)
       }
     }
-  };
+  }
 
+  // called when adding member
   const handleViewContacts = async () => {
-    setShowInput(true);
-    getContacts([contacts, setContacts]);
-  };
+    setShowInput(true)
+    getContacts([contacts, setContacts])
+  }
 
   // Function to handle adding a member to the chat
   const handleAddMember = async (uid) => {
-    console.log('Adding member');
+    console.log('Adding member')
     try {
-      await postAddMember(chatId, uid);
-      await getChatById(setChat, chatId);
+      await postAddMember(chatId, uid)
+      await getChatById(setChat, chatId)
     } catch (error) {
-      console.log(error);
+      console.log(error)
     }
-    setShowInput(false);
-  };
+    setShowInput(false)
+  }
 
   // Function to handle removing a member from the chat
   const handleRemoveMember = async (memberId) => {
-    console.log('Removing member');
+    console.log('Removing member')
     try {
-      await deleteChatMember(chatId, memberId);
-      await getChatById(setChat, chatId);
+      await deleteChatMember(chatId, memberId)
+      await getChatById(setChat, chatId)
     } catch (error) {
-      console.log(error);
+      console.log(error)
     }
-  };
+  }
 
+  // Funtion for message edit mode
   const handleEditMessage = (messageId, msg) => {
-    setEditedMessageId(messageId);
-    setEditMode(true);
-    setSelectedMessage(null);
-    setEditedMessage(msg);
-  };
+    setEditedMessageId(messageId)
+    setSelectedMessage(null)
+    setEditedMessage(msg)
+  }
 
+  // Saving adited message
   const handleSaveMessage = async (message, messageId) => {
     try {
-      console.log('Editing message:', messageId);
-      await patchMessage(chatId, message, messageId);
-      setEditedMessage('');
-      setSelectedMessage(null);
-      setEditMode(false);
-      await getChatById(setChat, chatId);
-    } catch (error) {
-      console.log(error);
-    }
-  };
+      console.log('Editing message:', messageId)
+      await patchMessage(chatId, message, messageId)
+      setEditedMessage('')
+      setSelectedMessage(null)
 
+      await getChatById(setChat, chatId)
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  // Deleting a message
   const handleDeleteMessage = async (messageId) => {
     try {
-      console.log('Deleting message:', messageId);
-      await deleteMessage(chatId, messageId);
-      setSelectedMessage(null);
-      await getChatById(setChat, chatId);
+      console.log('Deleting message:', messageId)
+      await deleteMessage(chatId, messageId)
+      setSelectedMessage(null)
+      await getChatById(setChat, chatId)
     } catch (error) {
-      console.log(error);
+      console.log(error)
     }
-  };
+  }
 
+  // Retrieve drafts from Async storage
+  const getDrafts = async () => {
+    const storedDrafts = await AsyncStorage.getItem('Chatdraft' + chatId)
+    if (storedDrafts) {
+      setDrafts(JSON.parse(storedDrafts))
+    }
+  }
 
+  // Saving a draft message
+  const handleSaveDraft = async () => {
+    const draft = inputText.trim()
+
+    if (draft.length === 0) {
+      return
+    }
+
+    try {
+      // Check if there are any existing drafts
+      let drafts = await AsyncStorage.getItem('Chatdraft' + chatId)
+
+      if (!drafts) {
+        drafts = []
+      } else {
+        drafts = JSON.parse(drafts)
+      }
+
+      // Add the new draft to the array
+      drafts.push(draft)
+
+      // Store the updated drafts array in AsyncStorage
+      await AsyncStorage.setItem('Chatdraft' + chatId, JSON.stringify(drafts))
+
+      console.log('Draft saved successfully')
+      setInputText('')
+    } catch (error) {
+      console.error('Error saving draft:', error)
+    }
+  }
+
+  // Remove a draft from the drafts array
+  const handleRemoveDraft = (index) => {
+    const newDrafts = [...drafts]
+    newDrafts.splice(index, 1)
+    setDrafts(newDrafts)
+    AsyncStorage.setItem('Chatdraft' + chatId, JSON.stringify(newDrafts))
+  }
+
+  // Editing a draft, sending it to the input box
+  const handleEditDraft = (index) => {
+    setInputText(drafts[index])
+    setDrafts(drafts.filter((_, i) => i !== index))
+    setSelectedDraft(index)
+    setShowDrafts(false)
+  }
 
   return (
     <SafeAreaView style={styles.safeAreaContainer}>
@@ -168,38 +246,45 @@ export default function Chat({ route }) {
           <Text style={styles.backButtonText}>{'<'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerText}>{chat.name}</Text>
-        <TouchableOpacity style={styles.membersButton} onPress={() => setShowMembers(!showMembers)}>
-          <FontAwesome name="users" size={24} color="black" />
-        </TouchableOpacity>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity style={styles.membersButton} onPress={() => { setShowMembers(false); getDrafts(); setShowDrafts(!showDrafts) }}>
+            <FontAwesome name='file-text-o' size={24} color='white' />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.membersButton} onPress={() => { setShowDrafts(false); setShowMembers(!showMembers) }}>
+            <FontAwesome name='users' size={24} color='white' />
+          </TouchableOpacity>
+        </View>
       </View>
       {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
-      {showInput ? (
-        <>
-          <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
-          <View style={styles.contactContainerParent}>
-            <View style={styles.contactContainer}>
-              {contacts.length > 0 && (
-                <>
-                  <View style={styles.unblockedHeaderContainer}>
-                    <Text style={styles.contactHeaderText}>Select a contact to add</Text>
-                  </View>
-                  {contacts.map((contact, index) => (
-                    <View key={contact.user_id} style={styles.homeItem}>
-                      <View style={styles.homeItemView}>
-                        <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleAddMember(contact.user_id)}>
-                          <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
-                        </TouchableOpacity>
-                      </View>
+      {showInput
+        ? (
+          <>
+            <TouchableOpacity style={styles.overlay} onPress={() => setShowInput(false)} />
+            <View style={styles.contactContainerParent}>
+              <View style={styles.contactContainer}>
+                {contacts.length > 0 && (
+                  <>
+                    <View style={styles.unblockedHeaderContainer}>
+                      <Text style={styles.contactHeaderText}>Select a contact to add</Text>
                     </View>
-                  ))}
-                </>
-              )}
+                    {contacts.map((contact, index) => (
+                      <View key={contact.user_id} style={styles.homeItem}>
+                        <View style={styles.homeItemView}>
+                          <TouchableOpacity style={styles.homeItemIcons} onPress={() => handleAddMember(contact.user_id)}>
+                            <Text style={styles.homeItemName}>{contact.first_name} {contact.last_name}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                )}
+              </View>
             </View>
-          </View>
-        </>
-      ) : (
-        <></>
-      )}
+          </>
+          )
+        : (
+          <></>
+          )}
       <View style={styles.containerA}>
         {showMembers && (
           <View style={styles.membersOverlay}>
@@ -212,7 +297,7 @@ export default function Chat({ route }) {
                       {member.first_name} {member.last_name}
                     </Text>
                     <TouchableOpacity style={styles.membersItemIcon} onPress={() => handleRemoveMember(member.user_id)}>
-                      <FontAwesome name="trash-o" size={24} color="red" />
+                      <FontAwesome name='trash-o' size={24} color='red' />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -223,6 +308,28 @@ export default function Chat({ route }) {
               <TouchableOpacity style={styles.addMemberButton} onPress={handleViewContacts}>
                 <Text style={styles.addMemberButtonText}>Add Member</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        {showDrafts && (
+          <View style={styles.membersOverlay}>
+            <View style={styles.membersContainer}>
+              <Text style={styles.membersHeader}>Drafts</Text>
+              {drafts.map((draft, index) => (
+                <View key={index} style={styles.memberRow}>
+                  <View style={styles.membersItemView}>
+                    <Text style={styles.membersItemName}>
+                      {draft}
+                    </Text>
+                    <TouchableOpacity style={styles.membersItemIcon} onPress={() => handleEditDraft(index)}>
+                      <FontAwesome name='edit' size={24} color='blue' />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.membersItemIcon} onPress={() => handleRemoveDraft(index)}>
+                      <FontAwesome name='trash-o' size={24} color='red' />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
             </View>
           </View>
         )}
@@ -237,8 +344,8 @@ export default function Chat({ route }) {
           >
             {chat.messages.sort((a, b) => a.timestamp - b.timestamp).map((message, index, array) => (
               <View key={index}>
-                {index === 0 || new Date(message.timestamp).toDateString() !== new Date(array[index - 1].timestamp).toDateString() ?
-                  <View style={styles.dateSeparatorContainer}>
+                {index === 0 || new Date(message.timestamp).toDateString() !== new Date(array[index - 1].timestamp).toDateString()
+                  ? <View style={styles.dateSeparatorContainer}>
                     <Text style={styles.dateSeparatorText}>
                       {new Date(message.timestamp).toDateString()}
                     </Text>
@@ -250,13 +357,13 @@ export default function Chat({ route }) {
                   ]}
                   onPress={() => setSelectedMessage(message.message_id)}
                 >
-                  {editedMessageId === message.message_id ?
-                    <View style={styles.editMessageInputContainer}>
+                  {editedMessageId === message.message_id
+                    ? <View style={styles.editMessageInputContainer}>
                       <TextInput
                         style={styles.editMessageInput}
-                        value={editedMessage ? editedMessage : ''}
+                        value={editedMessage || ''}
                         onChangeText={(text) => {
-                          setEditedMessage(text); // Always set editedMessage to the input value
+                          setEditedMessage(text) // Always set editedMessage to the input value
                         }}
                         autoFocus
                       />
@@ -265,18 +372,17 @@ export default function Chat({ route }) {
                         onPress={() => {
                           // Check if editedMessage is empty or only contains whitespace characters
                           if (editedMessage && editedMessage.trim().length > 0) {
-                            handleSaveMessage(editedMessage, message.message_id);
+                            handleSaveMessage(editedMessage, message.message_id)
                           }
-                          setEditedMessageId(null); // clear the edit mode after saving
+                          setEditedMessageId(null) // clear the edit mode after saving
                         }}
                       >
                         <Text style={styles.saveButtonText}>Save</Text>
                       </TouchableOpacity>
                     </View>
-                    :
-                    <Text>
+                    : <Text>
                       <Text style={String(message.author.user_id) === String(loggedUid) ? styles.userMessageText : styles.otherMessageText}>
-                        {String(message.author.user_id) === String(loggedUid) === loggedUid ? '' : `${message.author.first_name}: `}
+                        {String(message.author.user_id) === String(loggedUid) ? ' ' : `${message.author.first_name}: `}
                       </Text>
                       <Text style={String(message.author.user_id) === String(loggedUid) ? styles.userMessageText : styles.otherMessageText}>
                         {message.message}
@@ -284,23 +390,21 @@ export default function Chat({ route }) {
                       <Text style={styles.messageTime}>
                         {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </Text>
-                    </Text>
-                  }
+                    </Text>}
                   {selectedMessage === message.message_id && editedMessageId !== message.message_id && (
                     String(message.author.user_id) === String(loggedUid) &&
-                    <View style={styles.editDeleteIconsContainer}>
-                      <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id, message.message)}>
-                        <FontAwesome name="edit" size={20} color="#007AFF" />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.deleteIconContainer} onPress={() => handleDeleteMessage(message.message_id)}>
-                        <FontAwesome name="trash" size={20} color="red" />
-                      </TouchableOpacity>
-                    </View>
+                      <View style={styles.editDeleteIconsContainer}>
+                        <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id, message.message)}>
+                          <FontAwesome name='edit' size={20} color='#007AFF' />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.deleteIconContainer} onPress={() => handleDeleteMessage(message.message_id)}>
+                          <FontAwesome name='trash' size={20} color='red' />
+                        </TouchableOpacity>
+                      </View>
                   )}
                 </TouchableOpacity>
               </View>
             ))}
-
 
             {chat && chat.messages && chat.messages.length === 0 && (
               <Text style={styles.noMessagesText}>No messages yet.</Text>
@@ -308,10 +412,14 @@ export default function Chat({ route }) {
 
           </ScrollView>
           <View style={styles.inputContainer}>
+            {inputText.length > 0 &&
+              <TouchableOpacity style={styles.saveDraftButton} onPress={handleSaveDraft}>
+                <Text style={styles.saveDraftButtonText}>Save draft</Text>
+              </TouchableOpacity>}
             <TextInput
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Type a message"
+              placeholder='Type a message'
               style={styles.textInput}
               onSubmitEditing={handleSendMessage}
             />
@@ -322,7 +430,7 @@ export default function Chat({ route }) {
         </KeyboardAvoidingView>
       </View>
     </SafeAreaView>
-  );
+  )
 };
 
 const styles = StyleSheet.create({
@@ -349,8 +457,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     textShadowColor: '#000000',
-    //textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 5,
+    // textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 5
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  membersButton: {
+    paddingHorizontal: 20
   },
   backButton: {
     backgroundColor: '#FFFFFF',
@@ -365,16 +480,6 @@ const styles = StyleSheet.create({
   },
   messageListContainer: {
     flex: 1
-  },
-  membersContainer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    height: '100%',
-    width: 200,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 20
   },
   userMessageContainer: {
     backgroundColor: '#DCF8C6',
@@ -419,7 +524,19 @@ const styles = StyleSheet.create({
     borderColor: '#C8C8C8',
     borderRadius: 10,
     paddingHorizontal: 10,
-    marginRight: 10
+    marginRight: 10,
+    marginLeft: 10
+  },
+  saveDraftButton: {
+    backgroundColor: '#FF8C00',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10
+  },
+  saveDraftButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    textAlign: 'center'
   },
   sendButton: {
     backgroundColor: '#3366FF',
@@ -439,7 +556,7 @@ const styles = StyleSheet.create({
   },
   containerA: {
     flex: 1,
-    flexDirection: "row-reverse"
+    flexDirection: 'row-reverse'
   },
   membersOverlay: {
     position: 'absolute',
@@ -452,12 +569,12 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     alignItems: 'center',
     flexDirection: 'column',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-evenly'
   },
   membersContainer: {
     flex: 1,
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   memberAvatar: {
     width: 40,
@@ -471,25 +588,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     paddingTop: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#ccc'
   },
   membersItemView: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
   membersItemIcons: {
-    flex: 1,
+    flex: 1
   },
   membersItemName: {
     flex: 5,
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 16
   },
   addMemberContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 20,
+    margin: 20
   },
   addMemberButton: {
     flex: 1,
@@ -497,12 +614,12 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
     height: '100%',
-    borderRadius: 10,
+    borderRadius: 10
   },
   addMemberButtonText: {
     color: '#fff',
     textAlign: 'center',
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   overlay: {
     position: 'absolute',
@@ -511,14 +628,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 100,
+    zIndex: 100
   },
   contactContainerParent: {
     flex: 1,
     left: '38%',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 101,
+    zIndex: 101
   },
   contactContainer: {
     position: 'absolute',
@@ -529,7 +646,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 20,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   homeItem: {
     width: '100%',
@@ -537,28 +654,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     paddingTop: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#ccc'
   },
   homeItemView: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
   homeItemName: {
     flex: 5,
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 16
   },
   unblockedHeaderContainer: {
     backgroundColor: '#b3e6d1',
     alignItems: 'center',
     width: '100%',
-    padding: 10,
+    padding: 10
   },
   contactHeaderText: {
     color: '#000000',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   errorBanner: {
     position: 'absolute',
@@ -566,6 +683,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     padding: 10,
     zIndex: 999,
-    borderRadius: 10,
-  },
-});
+    borderRadius: 10
+  }
+})
