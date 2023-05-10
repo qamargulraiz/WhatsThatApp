@@ -91,8 +91,6 @@ export default function SignUp ({ navigation }) {
         }
       })
       .catch(
-        // Display error banner
-        setErrorMessage('Sign up failed. Please try again.')
       )
   }
 

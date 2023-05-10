@@ -115,7 +115,7 @@ export default function Chat ({ route }) {
         await getChatById(setChat, chatId)
         // Delete selected draft from the drafts array
         const updatedDrafts = drafts.filter((draft) => draft !== selectedDraft)
-        await AsyncStorage.setItem('Chatdraft' + chatId, JSON.stringify(updatedDrafts))
+        await AsyncStorage.setItem('Chatdraft' + chatId + 'User' + loggedUid, JSON.stringify(updatedDrafts))
       } catch (error) {
         console.log(error)
       }
@@ -186,7 +186,7 @@ export default function Chat ({ route }) {
 
   // Retrieve drafts from Async storage
   const getDrafts = async () => {
-    const storedDrafts = await AsyncStorage.getItem('Chatdraft' + chatId)
+    const storedDrafts = await AsyncStorage.getItem('Chatdraft' + chatId + 'User' + loggedUid)
     if (storedDrafts) {
       setDrafts(JSON.parse(storedDrafts))
     }
@@ -202,7 +202,7 @@ export default function Chat ({ route }) {
 
     try {
       // Check if there are any existing drafts
-      let drafts = await AsyncStorage.getItem('Chatdraft' + chatId)
+      let drafts = await AsyncStorage.getItem('Chatdraft' + chatId + 'User' + loggedUid)
 
       if (!drafts) {
         drafts = []
@@ -214,7 +214,7 @@ export default function Chat ({ route }) {
       drafts.push(draft)
 
       // Store the updated drafts array in AsyncStorage
-      await AsyncStorage.setItem('Chatdraft' + chatId, JSON.stringify(drafts))
+      await AsyncStorage.setItem('Chatdraft' + chatId + 'User' + loggedUid, JSON.stringify(drafts))
 
       console.log('Draft saved successfully')
       setInputText('')
@@ -228,7 +228,7 @@ export default function Chat ({ route }) {
     const newDrafts = [...drafts]
     newDrafts.splice(index, 1)
     setDrafts(newDrafts)
-    AsyncStorage.setItem('Chatdraft' + chatId, JSON.stringify(newDrafts))
+    AsyncStorage.setItem('Chatdraft' + chatId + 'User' + loggedUid, JSON.stringify(newDrafts))
   }
 
   // Editing a draft, sending it to the input box
@@ -296,12 +296,13 @@ export default function Chat ({ route }) {
                     <Text style={styles.membersItemName}>
                       {member.first_name} {member.last_name}
                     </Text>
-                    <TouchableOpacity style={styles.membersItemIcon} onPress={() => handleRemoveMember(member.user_id)}>
-                      <FontAwesome name='trash-o' size={24} color='red' />
-                    </TouchableOpacity>
+                    {String(member.user_id) !== String(loggedUid) && (
+                      <TouchableOpacity style={styles.membersItemIcon} onPress={() => handleRemoveMember(member.user_id)}>
+                        <FontAwesome name='trash-o' size={24} color='red' />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
-
               ))}
             </View>
             <View style={styles.addMemberContainer}>
@@ -393,14 +394,14 @@ export default function Chat ({ route }) {
                     </Text>}
                   {selectedMessage === message.message_id && editedMessageId !== message.message_id && (
                     String(message.author.user_id) === String(loggedUid) &&
-                      <View style={styles.editDeleteIconsContainer}>
-                        <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id, message.message)}>
-                          <FontAwesome name='edit' size={20} color='#007AFF' />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.deleteIconContainer} onPress={() => handleDeleteMessage(message.message_id)}>
-                          <FontAwesome name='trash' size={20} color='red' />
-                        </TouchableOpacity>
-                      </View>
+                    <View style={styles.editDeleteIconsContainer}>
+                      <TouchableOpacity style={styles.editIconContainer} onPress={() => handleEditMessage(message.message_id, message.message)}>
+                        <FontAwesome name='edit' size={20} color='#007AFF' />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.deleteIconContainer} onPress={() => handleDeleteMessage(message.message_id)}>
+                        <FontAwesome name='trash' size={20} color='red' />
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </TouchableOpacity>
               </View>
